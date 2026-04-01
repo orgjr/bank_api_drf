@@ -32,8 +32,8 @@ class TransactionModel(models.Model):
     transaction_type = models.CharField(
         max_length=2,
         choices=TRANSACTION_TYPE,
-        null=False,
-        blank=False,
+        null=True,
+        blank=True,
     )
     amount = models.DecimalField(
         max_digits=12,

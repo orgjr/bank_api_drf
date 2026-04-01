@@ -1,3 +1,4 @@
+from django.contrib.auth import authenticate
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
@@ -46,15 +47,13 @@ class MortgageSerializer(serializers.ModelSerializer):
 class TransactionTransferSerializer(serializers.ModelSerializer):
     class Meta:
         model = TransactionModel
-        fields = ["recipient", "transaction_type", "amount"]
+        fields = ["recipient", "amount"]
 
     def create(self, validated_data):
         request = self.context["request"]
         transaction_type = validated_data.get("transaction_type")
         if transaction_type != "TF":
-            raise ValidationError(
-                {"error": "Not a transfer transaction. Try it in /bank/transaction/"}
-            )
+            raise ValidationError({"error": "Not a valid transfer transaction."})
         sender = request.user.account
 
         transaction = TransactionModel(sender=sender, **validated_data)
@@ -65,17 +64,13 @@ class TransactionTransferSerializer(serializers.ModelSerializer):
 class TransactionSerializer(serializers.ModelSerializer):
     class Meta:
         model = TransactionModel
-        fields = ["transaction_type", "amount"]
+        fields = ["amount"]
 
     def create(self, validated_data):
         request = self.context["request"]
         transaction_type = validated_data.get("transaction_type")
         if transaction_type == "TF":
-            raise ValidationError(
-                {
-                    "error": "Not a valid transaction. Try it in /bank/transaction_transfer/"
-                }
-            )
+            raise ValidationError({"error": "Not a valid transaction."})
         sender = request.user.account
 
         transaction = TransactionModel(sender=sender, **validated_data)
@@ -97,3 +92,12 @@ class UserCreationSerializer(serializers.ModelSerializer):
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        user = authenticate(email=attrs["email"], password=attrs["password"])
+
+        if user is None:
+            raise serializers.ValidationError("invalid credentials")
+
+        attrs["user"] = user
+        return attrs

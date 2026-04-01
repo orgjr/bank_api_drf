@@ -1,0 +1,9 @@
+### transfer
+POST http://127.0.0.1:8000/bank/transaction/transfer/ HTTP/1.1
+Content-Type: application/json
+X-CSRFToken: cyGf0PePdUJVo0BkFKmiCn1Eoq9xzKJ9
+
+{
+    "recipient": "5168730",
+    "amount": "218.00"
+}

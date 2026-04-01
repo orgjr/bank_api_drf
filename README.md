@@ -213,7 +213,7 @@ Example payload:
 {
   "recipient": "1234567", // account number
   "transaction_type": "TF",
-  "amount": "150.00"
+  "amount": "150.00" // varchar input
 }
 ```
 

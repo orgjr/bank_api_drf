@@ -1,0 +1,8 @@
+### Create User
+POST http://127.0.0.1:8000/bank/user/ HTTP/1.1
+Content-Type: application/json
+
+{
+    "email": "userapi17@email.com",
+    "password": "blabla12"
+}

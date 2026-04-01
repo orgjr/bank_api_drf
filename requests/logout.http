@@ -1,0 +1,5 @@
+### logout
+POST http://127.0.0.1:8000/bank/auth/logout/
+X-CSRFToken: AgvShuwebU7vsp8rHW6PesWHfX3SWUAS
+
+

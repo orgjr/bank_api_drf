@@ -105,7 +105,9 @@ class UserViewSet(ViewSet):
                 "first_name": user.first_name,
                 "last_name": user.last_name,
                 "email": user.email,
-                # "account_number": user.account.number,
+                "agency": user.account.agency,
+                "account": user.account.number,
+                "balance": user.account.balance
             },
             status=200,
         )

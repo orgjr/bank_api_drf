@@ -2,6 +2,7 @@ from django.contrib.auth import authenticate
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
+from payment_slip.models import PaymentSlipModel
 from products.models import AccountModel, MortgageModel
 from transaction.models import TransactionModel
 from user.models import UserModel
@@ -51,12 +52,9 @@ class TransactionTransferSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         request = self.context["request"]
-        transaction_type = validated_data.get("transaction_type")
-        if transaction_type != "TF":
-            raise ValidationError({"error": "Not a valid transfer transaction."})
-        sender = request.user.account
+        transaction_type = validated_data.pop("transaction_type")
 
-        transaction = TransactionModel(sender=sender, **validated_data)
+        transaction = TransactionModel(sender=request.user.account, transaction_type=transaction_type, **validated_data)
         transaction.submit()
         return transaction
 
@@ -68,12 +66,9 @@ class TransactionSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         request = self.context["request"]
-        transaction_type = validated_data.get("transaction_type")
-        if transaction_type == "TF":
-            raise ValidationError({"error": "Not a valid transaction."})
-        sender = request.user.account
+        transaction_type = validated_data.pop("transaction_type")
 
-        transaction = TransactionModel(sender=sender, **validated_data)
+        transaction = TransactionModel(sender=request.user.account, transaction_type=transaction_type, **validated_data)
         transaction.submit()
         return transaction
 
@@ -101,3 +96,10 @@ class LoginSerializer(serializers.Serializer):
 
         attrs["user"] = user
         return attrs
+
+
+
+class PaymentSlipSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PaymentSlipModel
+        fields = []

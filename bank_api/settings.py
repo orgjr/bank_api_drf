@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     "core.apps.CoreConfig",
     "user.apps.UserConfig",
     "products.apps.ProductsConfig",
+    "payment_slip.apps.PaymentSlipConfig",
     "transaction.apps.TransactionConfig",
     "django.contrib.admin",
     "django.contrib.auth",
@@ -96,8 +97,12 @@ WSGI_APPLICATION = "bank_api.wsgi.application"
 
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": os.getenv("BANK_DB"),
+        "USER": os.getenv("DB_USER"),
+        "PASSWORD": os.getenv("BANK_DB_PASSWORD"),
+        "HOST": os.getenv("DB_HOST"),
+        "PORT": int(os.getenv("DB_PORT")),
     }
 }
 
@@ -142,7 +147,13 @@ AUTH_USER_MODEL = "user.UserModel"
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
-    "http://127.0.0.1:5173",
+    "http://localhost:4173",
 ]
 
-# CORS_ALLOW_ALL_ORIGINS = True
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://localhost:4173",
+]
+
+CORS_ALLOW_CREDENTIALS = True

@@ -12,7 +12,7 @@ from user.manager import UserManager
 class UserModel(AbstractUser):
     email = models.EmailField(unique=True)
     username = models.CharField(max_length=100, blank=True, null=True)
-    score = models.PositiveSmallIntegerField(default=random.randint(1, 1000))
+    score = models.PositiveSmallIntegerField()
     created_at = models.DateTimeField(auto_now_add=True)
 
     USERNAME_FIELD = "email"

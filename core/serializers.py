@@ -1,6 +1,5 @@
 from django.contrib.auth import authenticate
 from rest_framework import serializers
-from rest_framework.exceptions import ValidationError
 
 from payment_slip.models import PaymentSlipModel
 from products.models import AccountModel, MortgageModel
@@ -54,7 +53,11 @@ class TransactionTransferSerializer(serializers.ModelSerializer):
         request = self.context["request"]
         transaction_type = validated_data.pop("transaction_type")
 
-        transaction = TransactionModel(sender=request.user.account, transaction_type=transaction_type, **validated_data)
+        transaction = TransactionModel(
+            sender=request.user.account,
+            transaction_type=transaction_type,
+            **validated_data,
+        )
         transaction.submit()
         return transaction
 
@@ -68,7 +71,11 @@ class TransactionSerializer(serializers.ModelSerializer):
         request = self.context["request"]
         transaction_type = validated_data.pop("transaction_type")
 
-        transaction = TransactionModel(sender=request.user.account, transaction_type=transaction_type, **validated_data)
+        transaction = TransactionModel(
+            sender=request.user.account,
+            transaction_type=transaction_type,
+            **validated_data,
+        )
         transaction.submit()
         return transaction
 
@@ -98,8 +105,7 @@ class LoginSerializer(serializers.Serializer):
         return attrs
 
 
-
 class PaymentSlipSerializer(serializers.ModelSerializer):
     class Meta:
         model = PaymentSlipModel
-        fields = []
+        fields = ["payer_name", "amount"]

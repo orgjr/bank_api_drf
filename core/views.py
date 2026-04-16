@@ -5,14 +5,17 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet, ViewSet
 
-from core.serializer import (
+from core.serializers import (
     AccountSerializer,
     LoginSerializer,
     MortgageSerializer,
+    PaymentSlipSerializer,
     TransactionSerializer,
     TransactionTransferSerializer,
     UserCreationSerializer,
 )
+from payment_slip.models import PaymentSlipModel
+from payment_slip.services.payment_slip_services import PaymentSlipService
 from products.models import AccountModel, MortgageModel
 
 
@@ -107,7 +110,17 @@ class UserViewSet(ViewSet):
                 "email": user.email,
                 "agency": user.account.agency,
                 "account": user.account.number,
-                "balance": user.account.balance
+                "balance": user.account.balance,
             },
             status=200,
         )
+
+
+class PaymentSlipViewSet(ViewSet):
+    def create(self, request):
+        serializer = PaymentSlipSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = PaymentSlipService.generate(serializer.validated_data)
+        payment_slip = PaymentSlipModel.objects.create(**data)
+
+        return Response(PaymentSlipSerializer(payment_slip).data)

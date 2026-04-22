@@ -6,7 +6,7 @@ class PaymentSlipService:
     @staticmethod
     def generate(validated_data):
         barcode = f"1209{random.randrange(pow(10, 39), pow(10, 40))}"
-        digitable_line = f"{barcode[:4]}.{barcode[5:9]} {barcode[10:14]}.{barcode[15:19]} {barcode[20:24]}.{barcode[25:29]} {barcode[30]} {barcode[31:]}"
+        digitable_line = f"{a[:5]}.{a[5:10]} {a[10:15]}.{a[15:20]}.{a[20:25]} {a[25:30]} {a[30]} {a[31:]}"
         our_number = str(random.randrange(pow(9, 10)))
         document_number = str(
             f"{dt.datetime.now().strftime('%Y%m%d')}{random.randrange(pow(10, 3), pow(10, 4))}"

@@ -161,7 +161,7 @@ class UserViewSet(ViewSet):
     def me(self, request):
         user = get_object_or_404(UserModel, pk=request.user.pk)
 
-        # users with no account support
+        # support for users without an account
         try:
             if user.account:
                 return Response(

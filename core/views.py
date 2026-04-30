@@ -1,5 +1,9 @@
+import datetime as dt
+
 from django.contrib.auth import login, logout
 from django.db.models import Q
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -9,6 +13,7 @@ from rest_framework.viewsets import ModelViewSet, ViewSet
 from core.serializers import (
     AccountSerializer,
     GetPaymentSlipSerializer,
+    GetTransactionSerializer,
     LoginSerializer,
     MortgageSerializer,
     PaymentSlipSerializer,
@@ -19,6 +24,8 @@ from core.serializers import (
 from payment_slip.models import PaymentSlipModel
 from payment_slip.services.payment_slip_services import PaymentSlipService
 from products.models import AccountModel, MortgageModel
+from transaction.models import TransactionModel
+from user.models import UserModel
 
 
 # Create your views here.
@@ -78,6 +85,55 @@ class TransactionViewSet(ViewSet):
         deposit = serializer.save()
         return Response({"deposit": TransactionSerializer(deposit).data})
 
+    @action(detail=False, methods=["GET"], permission_classes=[IsAuthenticated])
+    def extract(self, request):
+        serializer = GetTransactionSerializer(data=request.query_params)
+
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=400)
+
+        # converted to aware datetime for database query compatibility
+        start_datetime = timezone.make_aware(
+            dt.datetime.combine(serializer.validated_data["start_date"], dt.time.min)
+        )
+
+        end_datetime = timezone.make_aware(
+            dt.datetime.combine(serializer.validated_data["end_date"], dt.time.max)
+        )
+
+        user_account = request.user.account.number
+
+        transactions = TransactionModel.objects.filter(
+            sender_id=user_account,
+            date__range=[start_datetime, end_datetime],
+        ).order_by("-date")
+
+        if not transactions.exists():
+            return Response(
+                {"detail": "Client does not have any transactions."},
+                status=200,
+            )
+
+        TYPE_MAP = {
+            "WD": "withdraw",
+            "PM": "payment",
+            "DP": "deposit",
+            "TF": "transfer",
+        }
+        data = [
+            {
+                "transaction_number": t.id,
+                "sender": t.sender_id,
+                "recipient": t.recipient_id,
+                "type": TYPE_MAP.get(t.transaction_type, t.transaction_type),
+                "amount": t.amount,
+                "date": t.date,
+            }
+            for t in transactions
+        ]
+
+        return Response({"transactions": data})
+
 
 class AuthViewSet(ViewSet):
     @action(detail=False, methods=["post"])
@@ -103,19 +159,33 @@ class UserViewSet(ViewSet):
 
     @action(detail=False, methods=["get"], permission_classes=[IsAuthenticated])
     def me(self, request):
-        user = request.user
-        return Response(
-            {
-                "username": user.username,
-                "first_name": user.first_name,
-                "last_name": user.last_name,
-                "email": user.email,
-                "agency": user.account.agency,
-                "account": user.account.number,
-                "balance": user.account.balance,
-            },
-            status=200,
-        )
+        user = get_object_or_404(UserModel, pk=request.user.pk)
+
+        # users with no account support
+        try:
+            if user.account:
+                return Response(
+                    {
+                        "username": user.username,
+                        "first_name": user.first_name,
+                        "last_name": user.last_name,
+                        "email": user.email,
+                        "agency": user.account.agency,
+                        "account": user.account.number,
+                        "balance": user.account.balance,
+                    },
+                    status=200,
+                )
+
+        except UserModel.account.RelatedObjectDoesNotExist:
+            return Response(
+                {
+                    "username": user.username,
+                    "first_name": user.first_name,
+                    "last_name": user.last_name,
+                    "email": user.email,
+                }
+            )
 
 
 class PaymentSlipViewSet(ViewSet):
@@ -125,23 +195,25 @@ class PaymentSlipViewSet(ViewSet):
         data = PaymentSlipService.generate(serializer.validated_data)
         payment_slip = PaymentSlipModel.objects.create(**data)
 
-        return Response(PaymentSlipSerializer(payment_slip).data)
+        return Response(
+            {
+                "barcode": data["barcode"],
+                "payer_name": payment_slip.payer_name,
+                "amount": payment_slip.amount,
+            },
+            status=200,
+        )
 
-    @action(detail=False, methods=['GET'])
+    @action(detail=False, methods=["GET"])
     def get(self, request):
         serializer = GetPaymentSlipSerializer(data=request.query_params)
         serializer.is_valid(raise_exception=True)
-        payment_slip_number = serializer.validated_data['payment_slip_number']
-        print(payment_slip_number)
+        payment_slip_number = serializer.validated_data["payment_slip_number"]
 
-
-        payment_slip = PaymentSlipModel.objects.get(
-            Q(barcode=payment_slip_number)
-        )
+        payment_slip = PaymentSlipModel.objects.get(Q(barcode=payment_slip_number))
 
         if not payment_slip:
             return Response({"detail": "Payment slip not found."}, status=404)
-
 
         response_data = {
             # ===============================
@@ -153,7 +225,6 @@ class PaymentSlipViewSet(ViewSet):
             "currency_code": payment_slip.currency_code,
             "our_number": payment_slip.our_number,
             "document_number": payment_slip.document_number,
-
             # ===============================
             # VALUES AND DATES
             # ===============================
@@ -165,7 +236,6 @@ class PaymentSlipViewSet(ViewSet):
             "discount_amount": payment_slip.discount_amount,
             "fine_amount": payment_slip.fine_amount,
             "interest_amount": payment_slip.interest_amount,
-
             # ===============================
             # BENEFICIARY
             # ===============================
@@ -173,7 +243,6 @@ class PaymentSlipViewSet(ViewSet):
             "beneficiary_document": payment_slip.beneficiary_document,
             "beneficiary_agency": payment_slip.beneficiary_agency,
             "beneficiary_account": payment_slip.beneficiary_account,
-
             # ===============================
             # PAYER
             # ===============================
@@ -183,19 +252,16 @@ class PaymentSlipViewSet(ViewSet):
             "payer_city": payment_slip.payer_city,
             "payer_state": payment_slip.payer_state,
             "payer_zipcode": payment_slip.payer_zipcode,
-
             # ===============================
             # STATUS AND CONTROL
             # ===============================
             "status": payment_slip.status,
             "instructions": payment_slip.instructions,
             "external_id": payment_slip.external_id,
-
             # ===============================
             # RELATIONSHIP
             # ===============================
             "transaction": payment_slip.transaction_id,
-
             # ===============================
             # CONTROL
             # ===============================
@@ -203,4 +269,4 @@ class PaymentSlipViewSet(ViewSet):
             "updated_at": payment_slip.updated_at,
         }
 
-        return Response({'detail': response_data}, status=200)
+        return Response({"detail": response_data}, status=200)

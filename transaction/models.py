@@ -44,8 +44,7 @@ class TransactionModel(models.Model):
     date = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"Sender: {self.sender.number} to {self.recipient}, Transaction: {self.transaction_type}"
-
+        return f"Sender: {self.sender.number} {'to ' + str(self.recipient if self.recipient is not None else '')}, Transaction: {self.transaction_type}"
 
     def clean(self):
         if not isinstance(self.amount, Decimal):
@@ -60,37 +59,29 @@ class TransactionModel(models.Model):
         if self.transaction_type in ["DP", "WD", "PM"] and self.recipient:
             raise ValidationError("This transaction should not have recipient")
 
-
-
     def debits_to_account(self):
         if self.amount > self.sender.balance:
             raise ValidationError("Insufficient funds.")
-        self.sender.balance = F('balance') - self.amount
-
+        self.sender.balance = F("balance") - self.amount
 
     def deposit(self):
-        self.sender.balance = F('balance') + self.amount
+        self.sender.balance = F("balance") + self.amount
         return self.transaction_type
-
 
     def transfer(self, recipient):
         if not recipient:
             raise ValidationError("Recipient is required for a transfer transaction")
         self.debits_to_account()
-        recipient.balance = F('balance') + self.amount
+        recipient.balance = F("balance") + self.amount
         return self.transaction_type
-
 
     def withdraw(self):
         self.debits_to_account()
         return self.transaction_type
 
-
     def payment(self):
         self.debits_to_account()
         return self.transaction_type
-
-
 
     @transaction.atomic
     def submit(self):

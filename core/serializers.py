@@ -1,4 +1,7 @@
+import datetime as dt
+
 from django.contrib.auth import authenticate
+from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
@@ -81,6 +84,31 @@ class TransactionSerializer(serializers.ModelSerializer):
         return transaction
 
 
+class GetTransactionSerializer(serializers.Serializer):
+    start_date = serializers.DateField(required=True)
+    end_date = serializers.DateField(required=True)
+
+    def validate(self, data):
+        today = timezone.localdate()
+        deadline = today - dt.timedelta(days=90)
+        start_date = data["start_date"]
+        end_date = data["end_date"]
+
+        # Filtered transactions with a max interval of 90 days
+        # only for local test
+        # maybe will be improved
+        if start_date < deadline or end_date < deadline:
+            raise serializers.ValidationError("Max range is 90 days.")
+
+        if start_date > today or end_date > today:
+            raise serializers.ValidationError("Dates cannot be in the future.")
+
+        if start_date > end_date:
+            raise serializers.ValidationError("start_date must be before end_date.")
+
+        return data
+
+
 class UserCreationSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserModel
@@ -96,14 +124,14 @@ class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
 
-    def validate(self, attrs):
-        user = authenticate(email=attrs["email"], password=attrs["password"])
+    def validate(self, data):
+        user = authenticate(email=data["email"], password=data["password"])
 
         if user is None:
             raise serializers.ValidationError("invalid credentials")
 
-        attrs["user"] = user
-        return attrs
+        data["user"] = user
+        return data
 
 
 class PaymentSlipSerializer(serializers.ModelSerializer):
@@ -119,7 +147,7 @@ class GetPaymentSlipSerializer(serializers.Serializer):
         if not value.isdigit():
             raise ValidationError("Only numeric values are allowed.")
 
-        if not len(value) in [44, 51]:
+        if len(value) not in [44, 51]:
             raise ValidationError("Use digitable line as payment slip identification.")
 
         return value

@@ -14,7 +14,7 @@ from core.views import (
 router = DefaultRouter()
 router.register(r"account", AccountViewSet, basename="author")
 router.register(r"mortgage", MortgageViewSet, basename="mortgage")
-router.register(r"transaction", TransactionViewSet, basename="transaction")
+router.register(r"transactions", TransactionViewSet, basename="transaction")
 router.register(r"user", UserViewSet, basename="user")
 router.register(r"auth", AuthViewSet, basename="auth")
 router.register(r"payment_slip", PaymentSlipViewSet, basename="payment_slip")

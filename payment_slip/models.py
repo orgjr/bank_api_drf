@@ -1,5 +1,7 @@
 from decimal import Decimal
+
 from django.db import models
+
 from transaction.models import TransactionModel
 
 
@@ -8,12 +10,13 @@ class PaymentSlipModel(models.Model):
     # IDENTIFICATION
     # ===============================
     barcode = models.CharField(max_length=44, unique=True)
-    digitable_line = models.CharField(max_length=51, unique=True)
+    digitable_line = models.CharField(max_length=54, unique=True)
 
     our_number = models.CharField(max_length=20, unique=True)
     document_number = models.CharField(max_length=64, unique=True)
 
-    bank_code = models.CharField(max_length=3, default="120")  # Fictício
+    bank_code = models.CharField(max_length=3, default="120")
+
     currency_code = models.CharField(max_length=1, default="9")  # Real FEBRABAN
 
     external_id = models.CharField(max_length=100, null=True, blank=True)
@@ -41,7 +44,9 @@ class PaymentSlipModel(models.Model):
     # ===============================
     # BENEFICIARY
     # ===============================
-    beneficiary_name = models.CharField(max_length=100, default="beneficiary enterprise name")
+    beneficiary_name = models.CharField(
+        max_length=100, default="beneficiary enterprise name"
+    )
     beneficiary_document = models.CharField(max_length=18, default="doc number")
     beneficiary_agency = models.CharField(max_length=10, default="9918")
     beneficiary_account = models.CharField(max_length=20, default="99999918")
@@ -88,7 +93,6 @@ class PaymentSlipModel(models.Model):
     # ===============================
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
 
     def save(self, *args, **kwargs):
         self.full_clean()

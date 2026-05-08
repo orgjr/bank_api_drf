@@ -5,6 +5,7 @@ from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
+# from rest_framework.exceptions import ValidationError
 from payment_slip.models import PaymentSlipModel
 from products.models import AccountModel, MortgageModel
 from transaction.models import TransactionModel
@@ -141,13 +142,15 @@ class PaymentSlipSerializer(serializers.ModelSerializer):
 
 
 class GetPaymentSlipSerializer(serializers.Serializer):
-    payment_slip_number = serializers.CharField(max_length=51)
+    payment_slip_number = serializers.CharField(max_length=54)
 
     def validate_payment_slip_number(self, value):
         if not value.isdigit():
             raise ValidationError("Only numeric values are allowed.")
 
-        if len(value) not in [44, 51]:
-            raise ValidationError("Use digitable line as payment slip identification.")
+        if len(value) not in [44, 47]:
+            raise ValidationError(
+                "Use digitable line digits or barcode as payment slip identification."
+            )
 
         return value

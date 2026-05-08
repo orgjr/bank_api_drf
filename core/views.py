@@ -1,7 +1,8 @@
 import datetime as dt
 
 from django.contrib.auth import login, logout
-from django.db.models import Q
+from django.core.exceptions import ObjectDoesNotExist, ValidationError
+from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.decorators import action
@@ -21,6 +22,7 @@ from core.serializers import (
     TransactionTransferSerializer,
     UserCreationSerializer,
 )
+from fake_cip.services.cip_registry_service import CIPPaymentSlipRegistryService
 from payment_slip.models import PaymentSlipModel
 from payment_slip.services.payment_slip_services import PaymentSlipService
 from products.models import AccountModel, MortgageModel
@@ -193,34 +195,29 @@ class PaymentSlipViewSet(ViewSet):
         serializer = PaymentSlipSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = PaymentSlipService.generate(serializer.validated_data)
-        payment_slip = PaymentSlipModel.objects.create(**data)
 
-        return Response(
-            {
-                "barcode": data["barcode"],
-                "payer_name": payment_slip.payer_name,
-                "amount": payment_slip.amount,
-            },
-            status=200,
-        )
+        with transaction.atomic():
+            try:
+                payment_slip = PaymentSlipModel.objects.create(**data)
+            except IntegrityError:
+                raise ValidationError("Duplicated payment slip")
 
-    @action(detail=False, methods=["GET"])
-    def get(self, request):
-        serializer = GetPaymentSlipSerializer(data=request.query_params)
-        serializer.is_valid(raise_exception=True)
-        payment_slip_number = serializer.validated_data["payment_slip_number"]
-
-        payment_slip = PaymentSlipModel.objects.get(Q(barcode=payment_slip_number))
-
-        if not payment_slip:
-            return Response({"detail": "Payment slip not found."}, status=404)
+            # fake CIP post request
+            CIPPaymentSlipRegistryService().cip_register(
+                barcode=payment_slip.barcode,
+                digitable_line=payment_slip.digitable_line,
+                bank_code=payment_slip.barcode[:3],
+                amount=payment_slip.amount,
+                name=payment_slip.payer_name,
+                due_date=payment_slip.due_date,
+            )
 
         response_data = {
             # ===============================
             # IDENTIFICATION
             # ===============================
-            "barcode": payment_slip.barcode,
             "digitable_line": payment_slip.digitable_line,
+            "barcode": payment_slip.barcode,
             "bank_code": payment_slip.bank_code,
             "currency_code": payment_slip.currency_code,
             "our_number": payment_slip.our_number,
@@ -269,4 +266,48 @@ class PaymentSlipViewSet(ViewSet):
             "updated_at": payment_slip.updated_at,
         }
 
-        return Response({"detail": response_data}, status=200)
+        return Response(response_data, status=201)
+
+    @action(detail=False, methods=["GET"], permission_classes=[IsAuthenticated])
+    def get(self, request):
+        serializer = GetPaymentSlipSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        payment_slip_number = serializer.validated_data["payment_slip_number"]
+        payment_slip_number_cleaned = "".join(filter(str.isdigit, payment_slip_number))
+
+        # digitable line with 47 digits
+        if len(payment_slip_number_cleaned) not in [44, 47]:
+            return Response({"detail": "Invalid payment slip number"})
+        if len(payment_slip_number_cleaned) == 47:
+            pos = [46, 31, 20]
+            cleaned = [step for step in payment_slip_number_cleaned]
+            for el in pos:
+                cleaned.pop(el)
+            payment_slip_number_cleaned = "".join(cleaned)
+
+        # fake CIP API request
+        try:
+            cip_payment_slip = CIPPaymentSlipRegistryService().get_by_barcode(
+                payment_slip_number_cleaned
+            )
+        except ObjectDoesNotExist:
+            return Response({"message": "Payment slip not found"}, status=404)
+
+        response_data = {
+            # IDENTIFICATION
+            "digitable_line": cip_payment_slip.digitable_line,
+            # VALUES AND DATES
+            "amount": cip_payment_slip.amount,
+            "due_date": cip_payment_slip.due_date,
+            # BENEFICIARY
+            "beneficiary_name": cip_payment_slip.beneficiary_name,
+            # INSTITUTION
+            "bank_code": cip_payment_slip.bank_code,
+            "bank_name": cip_payment_slip.get_bank_code_display(),
+            # STATUS
+            "status": cip_payment_slip.status,
+            "payment_date": cip_payment_slip.payment_date,
+            "created_at": cip_payment_slip.created_at,
+        }
+
+        return Response(response_data, status=200)

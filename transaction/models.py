@@ -59,47 +59,62 @@ class TransactionModel(models.Model):
         if self.transaction_type in ["DP", "WD", "PM"] and self.recipient:
             raise ValidationError("This transaction should not have recipient")
 
-    def debits_to_account(self):
-        if self.amount > self.sender.balance:
+    def debits_to_account(self, sender):
+        if self.amount > sender.balance:
             raise ValidationError("Insufficient funds.")
-        self.sender.balance = F("balance") - self.amount
+        sender.balance = F("balance") - self.amount
 
-    def deposit(self):
-        self.sender.balance = F("balance") + self.amount
+    def deposit(self, sender):
+        sender.balance = F("balance") + self.amount
         return self.transaction_type
 
-    def transfer(self, recipient):
+    def transfer(self, sender, recipient):
         if not recipient:
             raise ValidationError("Recipient is required for a transfer transaction")
-        self.debits_to_account()
+        self.debits_to_account(sender)
         recipient.balance = F("balance") + self.amount
         return self.transaction_type
 
-    def withdraw(self):
-        self.debits_to_account()
+    def withdraw(self, sender):
+        self.debits_to_account(sender)
         return self.transaction_type
 
-    def payment(self):
-        self.debits_to_account()
+    def payment(self, sender):
+        self.debits_to_account(sender)
         return self.transaction_type
 
     @transaction.atomic
     def submit(self):
         self.full_clean()
+
+        # protection against deadlock
+        account_ids = [self.sender_id]
+        if self.recipient_id:
+            account_ids.append(self.recipient_id)
+
+        # accounts lock by order
+        account_ids = sorted(account_ids)
+        accounts = AccountModel.objects.select_for_update().filter(pk__in=account_ids)
+        accounts_map = {acc.pk: acc for acc in accounts}
+
+        sender = accounts_map[self.sender_id]
+        recipient = accounts_map.get(self.recipient_id)
+
+        # business rules
         if self.transaction_type == "TF":
-            self.transfer(self.recipient)
+            self.transfer(sender, recipient)
         elif self.transaction_type == "DP":
-            self.deposit()
+            self.deposit(sender)
         elif self.transaction_type == "WD":
-            self.withdraw()
+            self.withdraw(sender)
         elif self.transaction_type == "PM":
-            self.payment()
+            self.payment(sender)
         else:
             raise ValidationError("Invalid transaction type")
 
-        self.sender.save()
+        sender.save()
 
-        if self.recipient:
-            self.recipient.save()
+        if recipient is not None:
+            recipient.save()
 
         super().save()

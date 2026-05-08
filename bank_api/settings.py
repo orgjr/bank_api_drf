@@ -34,6 +34,7 @@ ALLOWED_HOSTS = []
 INSTALLED_APPS = [
     "corsheaders",
     "core.apps.CoreConfig",
+    "fake_cip.apps.FakeCipConfig",
     "user.apps.UserConfig",
     "products.apps.ProductsConfig",
     "payment_slip.apps.PaymentSlipConfig",
